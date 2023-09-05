@@ -103,9 +103,7 @@ def create(r):
 
 def check(r):
     d = os.path.abspath(r)
-    if not os.path.isdir(d):
-        return None
-    return d
+    return None if not os.path.isdir(d) else d
 
 
 @contextlib.contextmanager
@@ -127,7 +125,7 @@ def parse_targets(in_targets):
         elif target in TARGETS:
             targets.add(target)
         else:
-            raise RuntimeError('{} is not a valid target'.format(target))
+            raise RuntimeError(f'{target} is not a valid target')
     return list(targets)
 
 
@@ -159,9 +157,7 @@ def parse_env_flags(args, flags):
                                format(s=sanitizer))
         if sanitizer in san:
             return True
-        if sanitizer in nosan:
-            return False
-        return default
+        return False if sanitizer in nosan else default
 
     san = set(san_flags.split(','))
     nosan = set(nosan_flags.split(','))
@@ -184,7 +180,7 @@ def compiler_version(cc, cxx):
     cxx_version_bytes = subprocess.check_output([cxx, "--version"])
     compiler = None
     version = None
-    print("{} --version:\n{}".format(cc, cc_version_bytes.decode('ascii')))
+    print(f"{cc} --version:\n{cc_version_bytes.decode('ascii')}")
     if b'clang' in cc_version_bytes:
         assert(b'clang' in cxx_version_bytes)
         compiler = 'clang'
@@ -225,8 +221,8 @@ def build_parser(args):
         dest='lib_fuzzing_engine',
         type=str,
         default=LIB_FUZZING_ENGINE,
-        help=('The fuzzing engine to use e.g. /path/to/libFuzzer.a '
-              "(default: $LIB_FUZZING_ENGINE='{})".format(LIB_FUZZING_ENGINE)))
+        help=f"The fuzzing engine to use e.g. /path/to/libFuzzer.a (default: $LIB_FUZZING_ENGINE='{LIB_FUZZING_ENGINE})",
+    )
 
     fuzz_group = parser.add_mutually_exclusive_group()
     fuzz_group.add_argument(
@@ -264,29 +260,29 @@ def build_parser(args):
         dest='msan_extra_cppflags',
         type=str,
         default=MSAN_EXTRA_CPPFLAGS,
-        help="Extra CPPFLAGS for MSAN (default: $MSAN_EXTRA_CPPFLAGS='{}')".
-        format(MSAN_EXTRA_CPPFLAGS))
+        help=f"Extra CPPFLAGS for MSAN (default: $MSAN_EXTRA_CPPFLAGS='{MSAN_EXTRA_CPPFLAGS}')",
+    )
     parser.add_argument(
         '--msan-extra-cflags',
         dest='msan_extra_cflags',
         type=str,
         default=MSAN_EXTRA_CFLAGS,
-        help="Extra CFLAGS for MSAN (default: $MSAN_EXTRA_CFLAGS='{}')".format(
-            MSAN_EXTRA_CFLAGS))
+        help=f"Extra CFLAGS for MSAN (default: $MSAN_EXTRA_CFLAGS='{MSAN_EXTRA_CFLAGS}')",
+    )
     parser.add_argument(
         '--msan-extra-cxxflags',
         dest='msan_extra_cxxflags',
         type=str,
         default=MSAN_EXTRA_CXXFLAGS,
-        help="Extra CXXFLAGS for MSAN (default: $MSAN_EXTRA_CXXFLAGS='{}')".
-        format(MSAN_EXTRA_CXXFLAGS))
+        help=f"Extra CXXFLAGS for MSAN (default: $MSAN_EXTRA_CXXFLAGS='{MSAN_EXTRA_CXXFLAGS}')",
+    )
     parser.add_argument(
         '--msan-extra-ldflags',
         dest='msan_extra_ldflags',
         type=str,
         default=MSAN_EXTRA_LDFLAGS,
-        help="Extra LDFLAGS for MSAN (default: $MSAN_EXTRA_LDFLAGS='{}')".
-        format(MSAN_EXTRA_LDFLAGS))
+        help=f"Extra LDFLAGS for MSAN (default: $MSAN_EXTRA_LDFLAGS='{MSAN_EXTRA_LDFLAGS}')",
+    )
     parser.add_argument(
         '--enable-sanitize-recover',
         dest='sanitize_recover',
@@ -331,43 +327,50 @@ def build_parser(args):
         dest='cc',
         type=str,
         default=CC,
-        help="CC (default: $CC='{}')".format(CC))
+        help=f"CC (default: $CC='{CC}')",
+    )
     parser.add_argument(
         '--cxx',
         dest='cxx',
         type=str,
         default=CXX,
-        help="CXX (default: $CXX='{}')".format(CXX))
+        help=f"CXX (default: $CXX='{CXX}')",
+    )
     parser.add_argument(
         '--cppflags',
         dest='cppflags',
         type=str,
         default=CPPFLAGS,
-        help="CPPFLAGS (default: $CPPFLAGS='{}')".format(CPPFLAGS))
+        help=f"CPPFLAGS (default: $CPPFLAGS='{CPPFLAGS}')",
+    )
     parser.add_argument(
         '--cflags',
         dest='cflags',
         type=str,
         default=CFLAGS,
-        help="CFLAGS (default: $CFLAGS='{}')".format(CFLAGS))
+        help=f"CFLAGS (default: $CFLAGS='{CFLAGS}')",
+    )
     parser.add_argument(
         '--cxxflags',
         dest='cxxflags',
         type=str,
         default=CXXFLAGS,
-        help="CXXFLAGS (default: $CXXFLAGS='{}')".format(CXXFLAGS))
+        help=f"CXXFLAGS (default: $CXXFLAGS='{CXXFLAGS}')",
+    )
     parser.add_argument(
         '--ldflags',
         dest='ldflags',
         type=str,
         default=LDFLAGS,
-        help="LDFLAGS (default: $LDFLAGS='{}')".format(LDFLAGS))
+        help=f"LDFLAGS (default: $LDFLAGS='{LDFLAGS}')",
+    )
     parser.add_argument(
         '--mflags',
         dest='mflags',
         type=str,
         default=MFLAGS,
-        help="Extra Make flags (default: $MFLAGS='{}')".format(MFLAGS))
+        help=f"Extra Make flags (default: $MFLAGS='{MFLAGS}')",
+    )
     parser.add_argument(
         'TARGET',
         nargs='*',
@@ -410,9 +413,9 @@ def build(args):
     common_flags = []
 
     cppflags += [
-        '-DDEBUGLEVEL={}'.format(args.debug),
-        '-DMEM_FORCE_MEMORY_ACCESS={}'.format(args.memory_access),
-        '-DFUZZ_RNG_SEED_SIZE={}'.format(args.fuzz_rng_seed_size),
+        f'-DDEBUGLEVEL={args.debug}',
+        f'-DMEM_FORCE_MEMORY_ACCESS={args.memory_access}',
+        f'-DFUZZ_RNG_SEED_SIZE={args.fuzz_rng_seed_size}',
     ]
 
     # Set flags for options
@@ -425,7 +428,7 @@ def build(args):
         common_flags += ['-fsanitize=fuzzer']
         args.lib_fuzzing_engine = ''
 
-    mflags += ['LIB_FUZZING_ENGINE={}'.format(args.lib_fuzzing_engine)]
+    mflags += [f'LIB_FUZZING_ENGINE={args.lib_fuzzing_engine}']
 
     if args.sanitize_recover:
         recover_flags = ['-fsanitize-recover=all']
@@ -459,7 +462,7 @@ def build(args):
 
     if args.third_party_seq_prod_obj:
         cppflags += ['-DFUZZ_THIRD_PARTY_SEQ_PROD']
-        mflags += ['THIRD_PARTY_SEQ_PROD_OBJ={}'.format(args.third_party_seq_prod_obj)]
+        mflags += [f'THIRD_PARTY_SEQ_PROD_OBJ={args.third_party_seq_prod_obj}']
 
     if args.fuzzing_mode:
         cppflags += ['-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION']
@@ -472,15 +475,15 @@ def build(args):
     cxxflags += common_flags
 
     # Prepare the flags for Make
-    cc_str = "CC={}".format(cc)
-    cxx_str = "CXX={}".format(cxx)
-    cppflags_str = "CPPFLAGS={}".format(' '.join(cppflags))
-    cflags_str = "CFLAGS={}".format(' '.join(cflags))
-    cxxflags_str = "CXXFLAGS={}".format(' '.join(cxxflags))
-    ldflags_str = "LDFLAGS={}".format(' '.join(ldflags))
+    cc_str = f"CC={cc}"
+    cxx_str = f"CXX={cxx}"
+    cppflags_str = f"CPPFLAGS={' '.join(cppflags)}"
+    cflags_str = f"CFLAGS={' '.join(cflags)}"
+    cxxflags_str = f"CXXFLAGS={' '.join(cxxflags)}"
+    ldflags_str = f"LDFLAGS={' '.join(ldflags)}"
 
     # Print the flags
-    print('MFLAGS={}'.format(' '.join(mflags)))
+    print(f"MFLAGS={' '.join(mflags)}")
     print(cc_str)
     print(cxx_str)
     print(cppflags_str)
@@ -521,18 +524,18 @@ def libfuzzer_parser(args):
     parser.add_argument(
         '--corpora',
         type=str,
-        help='Override the default corpora dir (default: {})'.format(
-            abs_join(CORPORA_DIR, 'TARGET')))
+        help=f"Override the default corpora dir (default: {abs_join(CORPORA_DIR, 'TARGET')})",
+    )
     parser.add_argument(
         '--artifact',
         type=str,
-        help='Override the default artifact dir (default: {})'.format(
-            abs_join(CORPORA_DIR, 'TARGET-crash')))
+        help=f"Override the default artifact dir (default: {abs_join(CORPORA_DIR, 'TARGET-crash')})",
+    )
     parser.add_argument(
         '--seed',
         type=str,
-        help='Override the default seed dir (default: {})'.format(
-            abs_join(CORPORA_DIR, 'TARGET-seed')))
+        help=f"Override the default seed dir (default: {abs_join(CORPORA_DIR, 'TARGET-seed')})",
+    )
     parser.add_argument(
         'TARGET',
         type=str,
@@ -541,7 +544,7 @@ def libfuzzer_parser(args):
     args.extra = extra
 
     if args.TARGET and args.TARGET not in TARGETS:
-        raise RuntimeError('{} is not a valid target'.format(args.TARGET))
+        raise RuntimeError(f'{args.TARGET} is not a valid target')
 
     return args
 
@@ -550,9 +553,9 @@ def libfuzzer(target, corpora=None, artifact=None, seed=None, extra_args=None):
     if corpora is None:
         corpora = abs_join(CORPORA_DIR, target)
     if artifact is None:
-        artifact = abs_join(CORPORA_DIR, '{}-crash'.format(target))
+        artifact = abs_join(CORPORA_DIR, f'{target}-crash')
     if seed is None:
-        seed = abs_join(CORPORA_DIR, '{}-seed'.format(target))
+        seed = abs_join(CORPORA_DIR, f'{target}-seed')
     if extra_args is None:
         extra_args = []
 
@@ -566,7 +569,7 @@ def libfuzzer(target, corpora=None, artifact=None, seed=None, extra_args=None):
     if seed is not None:
         corpora += [seed]
 
-    cmd = [target, '-artifact_prefix={}/'.format(artifact)]
+    cmd = [target, f'-artifact_prefix={artifact}/']
     cmd += corpora + extra_args
     print(' '.join(cmd))
     subprocess.check_call(cmd)
@@ -595,18 +598,19 @@ def afl_parser(args):
     parser.add_argument(
         '--corpora',
         type=str,
-        help='Override the default corpora dir (default: {})'.format(
-            abs_join(CORPORA_DIR, 'TARGET')))
+        help=f"Override the default corpora dir (default: {abs_join(CORPORA_DIR, 'TARGET')})",
+    )
     parser.add_argument(
         '--output',
         type=str,
-        help='Override the default AFL output dir (default: {})'.format(
-            abs_join(CORPORA_DIR, 'TARGET-afl')))
+        help=f"Override the default AFL output dir (default: {abs_join(CORPORA_DIR, 'TARGET-afl')})",
+    )
     parser.add_argument(
         '--afl-fuzz',
         type=str,
         default=AFL_FUZZ,
-        help='AFL_FUZZ (default: $AFL_FUZZ={})'.format(AFL_FUZZ))
+        help=f'AFL_FUZZ (default: $AFL_FUZZ={AFL_FUZZ})',
+    )
     parser.add_argument(
         'TARGET',
         type=str,
@@ -615,12 +619,12 @@ def afl_parser(args):
     args.extra = extra
 
     if args.TARGET and args.TARGET not in TARGETS:
-        raise RuntimeError('{} is not a valid target'.format(args.TARGET))
+        raise RuntimeError(f'{args.TARGET} is not a valid target')
 
     if not args.corpora:
         args.corpora = abs_join(CORPORA_DIR, args.TARGET)
     if not args.output:
-        args.output = abs_join(CORPORA_DIR, '{}-afl'.format(args.TARGET))
+        args.output = abs_join(CORPORA_DIR, f'{args.TARGET}-afl')
 
     return args
 
@@ -689,19 +693,20 @@ def gen_parser(args):
     parser.add_argument(
         '--seed',
         type=str,
-        help='Override the default seed dir (default: {})'.format(
-            abs_join(CORPORA_DIR, 'TARGET-seed')))
+        help=f"Override the default seed dir (default: {abs_join(CORPORA_DIR, 'TARGET-seed')})",
+    )
     parser.add_argument(
         '--decodecorpus',
         type=str,
         default=DECODECORPUS,
-        help="decodecorpus binary (default: $DECODECORPUS='{}')".format(
-            DECODECORPUS))
+        help=f"decodecorpus binary (default: $DECODECORPUS='{DECODECORPUS}')",
+    )
     parser.add_argument(
         '--zstd',
         type=str,
         default=ZSTD,
-        help="zstd binary (default: $ZSTD='{}')".format(ZSTD))
+        help=f"zstd binary (default: $ZSTD='{ZSTD}')",
+    )
     parser.add_argument(
         '--fuzz-rng-seed-size',
         type=int,
@@ -716,14 +721,15 @@ def gen_parser(args):
     args.extra = extra
 
     if args.TARGET and args.TARGET not in TARGETS:
-        raise RuntimeError('{} is not a valid target'.format(args.TARGET))
+        raise RuntimeError(f'{args.TARGET} is not a valid target')
 
     if not args.seed:
-        args.seed = abs_join(CORPORA_DIR, '{}-seed'.format(args.TARGET))
+        args.seed = abs_join(CORPORA_DIR, f'{args.TARGET}-seed')
 
     if not os.path.isfile(args.decodecorpus):
-        raise RuntimeError("{} is not a file run 'make -C {} decodecorpus'".
-                           format(args.decodecorpus, abs_join(FUZZ_DIR, '..')))
+        raise RuntimeError(
+            f"{args.decodecorpus} is not a file run 'make -C {abs_join(FUZZ_DIR, '..')} decodecorpus'"
+        )
 
     return args
 
@@ -736,7 +742,7 @@ def gen(args):
         return 1
 
     seed = create(args.seed)
-    with tmpdir() as compressed, tmpdir() as decompressed, tmpdir() as dict:
+    with (tmpdir() as compressed, tmpdir() as decompressed, tmpdir() as dict):
         info = TARGET_INFO[args.TARGET]
 
         if info.input_type == InputType.DICTIONARY_DATA:
@@ -745,31 +751,28 @@ def gen(args):
             number = args.number
         cmd = [
             args.decodecorpus,
-            '-n{}'.format(args.number),
-            '-p{}/'.format(compressed),
-            '-o{}'.format(decompressed),
+            f'-n{args.number}',
+            f'-p{compressed}/',
+            f'-o{decompressed}',
         ]
 
         if info.frame_type == FrameType.BLOCK:
-            cmd += [
-                '--gen-blocks',
-                '--max-block-size-log={}'.format(min(args.max_size_log, 17))
-            ]
+            cmd += ['--gen-blocks', f'--max-block-size-log={min(args.max_size_log, 17)}']
         else:
-            cmd += ['--max-content-size-log={}'.format(args.max_size_log)]
+            cmd += [f'--max-content-size-log={args.max_size_log}']
 
         print(' '.join(cmd))
         subprocess.check_call(cmd)
 
         if info.input_type == InputType.RAW_DATA:
-            print('using decompressed data in {}'.format(decompressed))
+            print(f'using decompressed data in {decompressed}')
             samples = decompressed
         elif info.input_type == InputType.COMPRESSED_DATA:
-            print('using compressed data in {}'.format(compressed))
+            print(f'using compressed data in {compressed}')
             samples = compressed
         else:
             assert info.input_type == InputType.DICTIONARY_DATA
-            print('making dictionary data from {}'.format(decompressed))
+            print(f'making dictionary data from {decompressed}')
             samples = dict
             min_dict_size_log = 9
             max_dict_size_log = max(min_dict_size_log + 1, args.max_size_log)
@@ -778,9 +781,11 @@ def gen(args):
                 cmd = [
                     args.zstd,
                     '--train',
-                    '-r', decompressed,
-                    '--maxdict={}'.format(dict_size),
-                    '-o', abs_join(dict, '{}.zstd-dict'.format(dict_size))
+                    '-r',
+                    decompressed,
+                    f'--maxdict={dict_size}',
+                    '-o',
+                    abs_join(dict, f'{dict_size}.zstd-dict'),
                 ]
                 print(' '.join(cmd))
                 subprocess.check_call(cmd)
@@ -813,12 +818,12 @@ def minimize(args):
     for target in args.TARGET:
         # Merge the corpus + anything else into the seed_corpus
         corpus = abs_join(CORPORA_DIR, target)
-        seed_corpus = abs_join(CORPORA_DIR, "{}_seed_corpus".format(target))
+        seed_corpus = abs_join(CORPORA_DIR, f"{target}_seed_corpus")
         extra_args = [corpus, "-merge=1"] + args.extra
         libfuzzer(target, corpora=seed_corpus, extra_args=extra_args)
         seeds = set(os.listdir(seed_corpus))
         # Copy all crashes directly into the seed_corpus if not already present
-        crashes = abs_join(CORPORA_DIR, '{}-crash'.format(target))
+        crashes = abs_join(CORPORA_DIR, f'{target}-crash')
         for crash in os.listdir(crashes):
             if crash not in seeds:
                 shutil.copy(abs_join(crashes, crash), seed_corpus)
@@ -837,8 +842,8 @@ def zip_cmd(args):
 
     for target in args.TARGET:
         # Zip the seed_corpus
-        seed_corpus = abs_join(CORPORA_DIR, "{}_seed_corpus".format(target))
-        zip_file = "{}.zip".format(seed_corpus)
+        seed_corpus = abs_join(CORPORA_DIR, f"{target}_seed_corpus")
+        zip_file = f"{seed_corpus}.zip"
         cmd = ["zip", "-r", "-q", "-j", "-9", zip_file, "."]
         print(' '.join(cmd))
         subprocess.check_call(cmd, cwd=seed_corpus)
@@ -850,7 +855,7 @@ def list_cmd(args):
 
 def short_help(args):
     name = args[0]
-    print("Usage: {} [OPTIONS] COMMAND [ARGS]...\n".format(name))
+    print(f"Usage: {name} [OPTIONS] COMMAND [ARGS]...\n")
 
 
 def help(args):
@@ -875,11 +880,11 @@ def main():
     if len(args) < 2:
         help(args)
         return 1
-    if args[1] == '-h' or args[1] == '--help' or args[1] == '-H':
+    if args[1] in ['-h', '--help', '-H']:
         help(args)
         return 1
     command = args.pop(1)
-    args[0] = "{} {}".format(args[0], command)
+    args[0] = f"{args[0]} {command}"
     if command == "build":
         return build(args)
     if command == "libfuzzer":
@@ -897,7 +902,7 @@ def main():
     if command == "list":
         return list_cmd(args)
     short_help(args)
-    print("Error: No such command {} (pass -h for help)".format(command))
+    print(f"Error: No such command {command} (pass -h for help)")
     return 1
 
 

@@ -32,7 +32,7 @@ REL_EXCLUDES = [
 ]
 
 def to_abs(d):
-    return os.path.normpath(os.path.join(ROOT, d)) + "/"
+    return f"{os.path.normpath(os.path.join(ROOT, d))}/"
 
 DIRS = [to_abs(d) for d in RELDIRS]
 EXCLUDES = [to_abs(d) for d in REL_EXCLUDES]
@@ -128,10 +128,7 @@ def valid_file(filename):
 
 
 def exclude(filename):
-    for x in EXCLUDES:
-        if filename.startswith(x):
-            return True
-    return False
+    return any(filename.startswith(x) for x in EXCLUDES)
 
 def main():
     invalid_files = []
@@ -143,7 +140,7 @@ def main():
                     continue
                 if not valid_file(filename):
                     invalid_files.append(filename)
-    if len(invalid_files) > 0:
+    if invalid_files:
         print("Fail!", file=sys.stderr)
         for f in invalid_files:
             print(f)
