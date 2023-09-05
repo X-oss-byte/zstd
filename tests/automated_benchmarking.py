@@ -49,7 +49,7 @@ def get_new_open_pr_builds(prev_state=True):
     }
     with open(PREVIOUS_PRS_FILENAME, "wb") as f:
         pk.dump(prs, f)
-    if not prev_state or prev_prs == None:
+    if not prev_state or prev_prs is None:
         return list(prs.values())
     return [pr for url, pr in prs.items() if url not in prev_prs or prev_prs[url] != pr]
 
@@ -60,11 +60,11 @@ def get_latest_hashes():
     )
     sha1 = tmp.split("\n")[0].split(" ")[1]
     tmp = subprocess.run(
-        ["git", "show", "{}^1".format(sha1)], stdout=subprocess.PIPE
+        ["git", "show", f"{sha1}^1"], stdout=subprocess.PIPE
     ).stdout.decode("utf-8")
     sha2 = tmp.split("\n")[0].split(" ")[1]
     tmp = subprocess.run(
-        ["git", "show", "{}^2".format(sha1)], stdout=subprocess.PIPE
+        ["git", "show", f"{sha1}^2"], stdout=subprocess.PIPE
     ).stdout.decode("utf-8")
     sha3 = "" if len(tmp) == 0 else tmp.split("\n")[0].split(" ")[1]
     return [sha1.strip(), sha2.strip(), sha3.strip()]
@@ -72,17 +72,17 @@ def get_latest_hashes():
 
 def get_builds_for_latest_hash():
     hashes = get_latest_hashes()
-    for b in get_new_open_pr_builds(False):
-        if b["hash"] in hashes:
-            return [b]
-    return []
+    return next(
+        ([b] for b in get_new_open_pr_builds(False) if b["hash"] in hashes), []
+    )
 
 
 def clone_and_build(build):
     if build["user"] != None:
         github_url = GITHUB_URL_TEMPLATE.format(build["user"])
         os.system(
-            """
+            (
+                """
             rm -rf zstd-{user}-{sha} &&
             git clone {github_url} zstd-{user}-{sha} &&
             cd zstd-{user}-{sha} &&
@@ -90,12 +90,13 @@ def clone_and_build(build):
             make -j &&
             cd ../
         """.format(
-                user=build["user"],
-                github_url=github_url,
-                sha=build["hash"],
-                checkout_command="git checkout {} &&".format(build["hash"])
-                if build["hash"] != None
-                else "",
+                    user=build["user"],
+                    github_url=github_url,
+                    sha=build["hash"],
+                    checkout_command=f'git checkout {build["hash"]} &&'
+                    if build["hash"] != None
+                    else "",
+                )
             )
         )
         return "zstd-{user}-{sha}/zstd".format(user=build["user"], sha=build["hash"])
@@ -110,27 +111,22 @@ def parse_benchmark_output(output):
 
 
 def benchmark_single(executable, level, filename):
-    return parse_benchmark_output((
+    return parse_benchmark_output(
         subprocess.run(
-            [executable, "-qb{}".format(level), filename], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            [executable, f"-qb{level}", filename],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
         )
         .stdout.decode("utf-8")
         .split(" ")
-    ))
+    )
 
 
 def benchmark_n(executable, level, filename, n):
     speeds_arr = [benchmark_single(executable, level, filename) for _ in range(n)]
     cspeed, dspeed = max(b[0] for b in speeds_arr), max(b[1] for b in speeds_arr)
     print(
-        "Bench (executable={} level={} filename={}, iterations={}):\n\t[cspeed: {} MB/s, dspeed: {} MB/s]".format(
-            os.path.basename(executable),
-            level,
-            os.path.basename(filename),
-            n,
-            cspeed,
-            dspeed,
-        )
+        f"Bench (executable={os.path.basename(executable)} level={level} filename={os.path.basename(filename)}, iterations={n}):\n\t[cspeed: {cspeed} MB/s, dspeed: {dspeed} MB/s]"
     )
     return (cspeed, dspeed)
 
@@ -145,21 +141,27 @@ def benchmark(build, filenames, levels, iterations):
 def benchmark_dictionary_single(executable, filenames_directory, dictionary_filename, level, iterations):
     cspeeds, dspeeds = [], []
     for _ in range(iterations):
-        output = subprocess.run([executable, "-qb{}".format(level), "-D", dictionary_filename, "-r", filenames_directory], stdout=subprocess.PIPE).stdout.decode("utf-8").split(" ")
+        output = (
+            subprocess.run(
+                [
+                    executable,
+                    f"-qb{level}",
+                    "-D",
+                    dictionary_filename,
+                    "-r",
+                    filenames_directory,
+                ],
+                stdout=subprocess.PIPE,
+            )
+            .stdout.decode("utf-8")
+            .split(" ")
+        )
         cspeed, dspeed = parse_benchmark_output(output)
         cspeeds.append(cspeed)
         dspeeds.append(dspeed)
     max_cspeed, max_dspeed = max(cspeeds), max(dspeeds)
     print(
-        "Bench (executable={} level={} filenames_directory={}, dictionary_filename={}, iterations={}):\n\t[cspeed: {} MB/s, dspeed: {} MB/s]".format(
-            os.path.basename(executable),
-            level,
-            os.path.basename(filenames_directory),
-            os.path.basename(dictionary_filename),
-            iterations,
-            max_cspeed,
-            max_dspeed,
-        )
+        f"Bench (executable={os.path.basename(executable)} level={level} filenames_directory={os.path.basename(filenames_directory)}, dictionary_filename={os.path.basename(dictionary_filename)}, iterations={iterations}):\n\t[cspeed: {max_cspeed} MB/s, dspeed: {max_dspeed} MB/s]"
     )
     return (max_cspeed, max_dspeed)
 
@@ -172,11 +174,9 @@ def benchmark_dictionary(build, filenames_directory, dictionary_filename, levels
 def parse_regressions_and_labels(old_cspeed, new_cspeed, old_dspeed, new_dspeed, baseline_build, test_build):
     cspeed_reg = (old_cspeed - new_cspeed) / old_cspeed
     dspeed_reg = (old_dspeed - new_dspeed) / old_dspeed
-    baseline_label = "{}:{} ({})".format(
-        baseline_build["user"], baseline_build["branch"], baseline_build["hash"]
-    )
-    test_label = "{}:{} ({})".format(
-        test_build["user"], test_build["branch"], test_build["hash"]
+    baseline_label = f'{baseline_build["user"]}:{baseline_build["branch"]} ({baseline_build["hash"]})'
+    test_label = (
+        f'{test_build["user"]}:{test_build["branch"]} ({test_build["hash"]})'
     )
     return cspeed_reg, dspeed_reg, baseline_label, test_label
 
@@ -258,11 +258,11 @@ def get_regressions_dictionary(baseline_build, test_build, filenames_directory, 
 
 
 def main(filenames, levels, iterations, builds=None, emails=None, continuous=False, frequency=DEFAULT_MAX_API_CALL_FREQUENCY_SEC, dictionary_filename=None):
-    if builds == None:
+    if builds is None:
         builds = get_new_open_pr_builds()
     while True:
         for test_build in builds:
-            if dictionary_filename == None:
+            if dictionary_filename is None:
                 regressions = get_regressions(
                     RELEASE_BUILD, test_build, iterations, filenames, levels
                 )
@@ -270,8 +270,8 @@ def main(filenames, levels, iterations, builds=None, emails=None, continuous=Fal
                 regressions = get_regressions_dictionary(
                     RELEASE_BUILD, test_build, filenames, dictionary_filename, levels, iterations
                 )
-            body = "\n".join(regressions)
             if len(regressions) > 0:
+                body = "\n".join(regressions)
                 if emails != None:
                     os.system(
                         """
@@ -280,7 +280,7 @@ def main(filenames, levels, iterations, builds=None, emails=None, continuous=Fal
                             body, emails
                         )
                     )
-                    print("Emails sent to {}".format(emails))
+                    print(f"Emails sent to {emails}")
                 print(body)
         if not continuous:
             break
@@ -307,20 +307,20 @@ if __name__ == "__main__":
     frequency = int(args.frequency)
     dictionary_filename = args.dict
 
-    if dictionary_filename == None:
-        filenames = glob.glob("{}/**".format(filenames))
+    if dictionary_filename is None:
+        filenames = glob.glob(f"{filenames}/**")
 
     if (len(filenames) == 0):
         print("0 files found")
         quit()
 
-    if mode == "onetime":
-        main(filenames, levels, iterations, frequency=frequenc, dictionary_filename=dictionary_filename)
-    elif mode == "current":
+    if mode == "current":
         builds = [{"user": None, "branch": "None", "hash": None}]
         main(filenames, levels, iterations, builds, frequency=frequency, dictionary_filename=dictionary_filename)
     elif mode == "fastmode":
         builds = [{"user": "facebook", "branch": "release", "hash": None}]
         main(filenames, levels, iterations, builds, frequency=frequency, dictionary_filename=dictionary_filename)
+    elif mode == "onetime":
+        main(filenames, levels, iterations, frequency=frequenc, dictionary_filename=dictionary_filename)
     else:
         main(filenames, levels, iterations, None, emails, True, frequency=frequency, dictionary_filename=dictionary_filename)

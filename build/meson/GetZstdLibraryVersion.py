@@ -20,8 +20,7 @@ def find_version_tuple(filepath):
 #\s*define\s+ZSTD_VERSION_RELEASE\s+([0-9]+)
 """
   regex = re.compile(patterns, re.MULTILINE)
-  version_match = regex.search(version_file_data)
-  if version_match:
+  if version_match := regex.search(version_file_data):
     return version_match.groups()
   raise Exception("Unable to find version string")
 

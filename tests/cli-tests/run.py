@@ -68,19 +68,14 @@ def exclude_dir(dirname: str) -> bool:
     """
     Should files under the directory :dirname: be excluded from the test runner?
     """
-    if dirname in EXCLUDED_DIRS:
-        return True
-    return False
+    return dirname in EXCLUDED_DIRS
 
 
 def exclude_file(filename: str) -> bool:
     """Should the file :filename: be excluded from the test runner?"""
     if filename in EXCLUDED_BASENAMES:
         return True
-    for suffix in EXCLUDED_SUFFIXES:
-        if filename.endswith(suffix):
-            return True
-    return False
+    return any(filename.endswith(suffix) for suffix in EXCLUDED_SUFFIXES)
 
 def read_file(filename: str) -> bytes:
     """Reads the file :filename: and returns the contents as bytes."""
@@ -116,10 +111,7 @@ def pop_line(data: bytes) -> typing.Tuple[typing.Optional[bytes], bytes]:
 
     parts = data.split(NEWLINE, maxsplit=1)
     line = parts[0] + NEWLINE
-    if len(parts) == 1:
-        return line, b''
-
-    return line, parts[1]
+    return (line, b'') if len(parts) == 1 else (line, parts[1])
 
 
 def glob_line_matches(actual: bytes, expect: bytes) -> bool:
@@ -145,9 +137,7 @@ def glob_diff(actual: bytes, expect: bytes) -> bytes:
             expect_line, expect = pop_line(expect)
 
         if expect_line is None and actual_line is None:
-            if diff == b'':
-                return None
-            return diff
+            return None if diff == b'' else diff
         elif expect_line is None:
             diff += b"---\n"
             while actual_line != None:
@@ -169,9 +159,7 @@ def glob_diff(actual: bytes, expect: bytes) -> bytes:
         if expect_line == b'...\n':
             next_expect_line, expect = pop_line(expect)
             if next_expect_line is None:
-                if diff == b'':
-                    return None
-                return diff
+                return None if diff == b'' else diff
             while not glob_line_matches(actual_line, next_expect_line):
                 actual_line, actual = pop_line(actual)
                 if actual_line is None:
@@ -320,9 +308,7 @@ class TestCase:
     def _join_test(self) -> None:
         """Join the test process and save stderr, stdout, and the exit code."""
         (stdout, stderr) = self._test_process.communicate(timeout=self._opts.timeout)
-        self._output = {}
-        self._output["stdout"] = stdout
-        self._output["stderr"] = stderr
+        self._output = {"stdout": stdout, "stderr": stderr}
         self._exit_code = self._test_process.returncode
         self._test_process = None
         if self._test_stdin is not None:
@@ -414,10 +400,7 @@ class TestCase:
             with open(exit_name, "w") as f:
                 f.write(str(self._exit_code) + "\n")
         exit_name = f"{self._test_file}.exit"
-        if os.path.exists(exit_name):
-            exit_code: int = int(read_file(exit_name))
-        else:
-            exit_code: int = 0
+        exit_code: int = int(read_file(exit_name)) if os.path.exists(exit_name) else 0
         if exit_code == self._exit_code:
             self._success["check_exit"] = True
             self._message["check_exit"] = "Exit code matches!"
@@ -548,10 +531,7 @@ def get_all_tests(options: Options) -> TestSuites:
     test_suites = {}
     for root, dirs, files in os.walk(options.test_dir, topdown=True):
         dirs[:] = [d for d in dirs if not exclude_dir(d)]
-        test_cases = []
-        for file in files:
-            if not exclude_file(file):
-                test_cases.append(file)
+        test_cases = [file for file in files if not exclude_file(file)]
         assert root == os.path.normpath(root)
         test_suites[root] = test_cases
     return test_suites
@@ -706,7 +686,7 @@ if __name__ == "__main__":
     env["ZSTDGREP_BIN"] = os.path.abspath(args.zstdgrep)
     env["ZSTDLESS_BIN"] = os.path.abspath(args.zstdless)
     env["COMMON"] = os.path.abspath(os.path.join(args.test_dir, "common"))
-    env["PATH"] = bin_dir + ":" + os.getenv("PATH", "")
+    env["PATH"] = f"{bin_dir}:" + os.getenv("PATH", "")
     env["LC_ALL"] = "C"
 
     opts = Options(
@@ -724,8 +704,7 @@ if __name__ == "__main__":
     else:
         tests = resolve_listed_tests(args.tests, opts)
 
-    success = run_tests(tests, opts)
-    if success:
+    if success := run_tests(tests, opts):
         sys.exit(0)
     else:
         sys.exit(1)

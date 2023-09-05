@@ -115,13 +115,8 @@ def resolve_include(file: str, parent: Optional[Path] = None) -> Optional[Path]:
         found = root.joinpath(file).resolve()
         if (found.is_file()):
             return found
-    if (parent):
-        found = parent.joinpath(file).resolve();
-    else:
-        found = Path(file)
-    if (found.is_file()):
-        return found
-    return None
+    found = parent.joinpath(file).resolve() if parent else Path(file)
+    return found if (found.is_file()) else None
 
 # Helper to resolve lists of files. 'file_list' is passed in from the arguments
 # and each entry resolved to its canonical path (like any include entry, either
@@ -129,10 +124,9 @@ def resolve_include(file: str, parent: Optional[Path] = None) -> Optional[Path]:
 # is case is the input file). The results are stored in 'resolved'.
 # 
 def resolve_excluded_files(file_list: Optional[List[str]], resolved: Set[Path], parent: Optional[Path] = None) -> None:
-    if (file_list):
+    if file_list:
         for filename in file_list:
-            found = resolve_include(filename, parent)
-            if (found):
+            if found := resolve_include(filename, parent):
                 resolved.add(found)
             else:
                 error_line(f'Warning: excluded file not found: {filename}')
@@ -163,40 +157,35 @@ def add_file(file: Path, file_name: str = None) -> None:
         with file.open('r', errors='replace') as opened:
             for line in opened:
                 line = line.rstrip('\n')
-                match_include = include_regex.match(line);
-                if (match_include):
+                if match_include := include_regex.match(line):
                     # We have a quoted include directive so grab the file
                     inc_name = match_include.group(1)
-                    resolved = resolve_include(inc_name, file.parent)
-                    if (resolved):
+                    if resolved := resolve_include(inc_name, file.parent):
                         if (resolved in excludes):
                             # The file was excluded so error if the compiler uses it
                             write_line(f'#error Using excluded file: {inc_name} (re-amalgamate source to fix)')
                             error_line(f'Excluding: {inc_name}')
+                        elif resolved in found:
+                            write_line(f'/**** skipping file: {inc_name} ****/')
                         else:
-                            if (resolved not in found):
-                                # The file was not previously encountered
-                                found.add(resolved)
-                                if (resolved in keeps):
-                                    # But the include was flagged to keep as included
-                                    write_line(f'/**** *NOT* inlining {inc_name} ****/')
-                                    write_line(line)
-                                    error_line(f'Not inlining: {inc_name}')
-                                else:
-                                    # The file was neither excluded nor seen before so inline it
-                                    write_line(f'/**** start inlining {inc_name} ****/')
-                                    add_file(resolved, inc_name)
-                                    write_line(f'/**** ended inlining {inc_name} ****/')
+                            # The file was not previously encountered
+                            found.add(resolved)
+                            if (resolved in keeps):
+                                # But the include was flagged to keep as included
+                                write_line(f'/**** *NOT* inlining {inc_name} ****/')
+                                write_line(line)
+                                error_line(f'Not inlining: {inc_name}')
                             else:
-                                write_line(f'/**** skipping file: {inc_name} ****/')
+                                # The file was neither excluded nor seen before so inline it
+                                write_line(f'/**** start inlining {inc_name} ****/')
+                                add_file(resolved, inc_name)
+                                write_line(f'/**** ended inlining {inc_name} ****/')
                     else:
                         # The include file didn't resolve to a file
                         write_line(f'#error Unable to find: {inc_name}')
                         error_line(f'Error: Unable to find: {inc_name}')
-                else:
-                    # Skip any 'pragma once' directives, otherwise write the source line
-                    if (keep_pragma or not pragma_regex.match(line)):
-                        write_line(line)
+                elif (keep_pragma or not pragma_regex.match(line)):
+                    write_line(line)
     else:
         error_line(f'Error: Invalid file: {file}')
 
